@@ -1,3 +1,6 @@
 [submodule "week3-msg-integrity/src/utils"]
 	path = week3-msg-integrity/src/utils
 	url = git@github.com:kryheb/utils.git
+[submodule "week4-auth-encryption/src/utils"]
+	path = week4-auth-encryption/src/utils
+	url = git@github.com:kryheb/utils.git
