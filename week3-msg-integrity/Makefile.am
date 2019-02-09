@@ -7,7 +7,8 @@ msgintegrity_SOURCES= \
 src/main.cpp \
 src/curldownloader.cpp \
 src/msgintegrity.cpp \
-src/utils/log/log.cpp
+src/utils/log/log.cpp \
+src/utils/httpclient/simplehttpclient.cpp
 
 msgintegrity_CXXFLAGS= \
 -I src \

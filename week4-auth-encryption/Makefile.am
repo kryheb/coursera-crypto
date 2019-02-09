@@ -5,8 +5,9 @@ bin_PROGRAMS = paddingoracle
 
 paddingoracle_SOURCES= \
 src/main.cpp \
-src/message.cpp \
-src/utils/log/log.cpp
+src/paddingoracle.cpp \
+src/utils/log/log.cpp \
+src/utils/httpclient/simplehttpclient.cpp
 
 paddingoracle_CXXFLAGS= \
 -I src \
