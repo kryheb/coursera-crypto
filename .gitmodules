@@ -4,3 +4,6 @@
 [submodule "week4-auth-encryption/src/utils"]
 	path = week4-auth-encryption/src/utils
 	url = git@github.com:kryheb/utils.git
+[submodule "week5-basic-key-exchange/src/utils"]
+	path = week5-basic-key-exchange/src/utils
+	url = git@github.com:kryheb/utils.git
