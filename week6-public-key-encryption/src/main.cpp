@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <cmath>
 #include <gmpxx.h>
 #include "utils/log/log.hpp"
+#include <boost/algorithm/string.hpp>
 
 
 class ModulusFactorBase
@@ -90,9 +92,9 @@ class ModulusFactorBase
 
   mpz_class min(mpz_class _l, mpz_class _r)
   {
-    return (mpz_cmp(_l.get_mpz_t(), _r.get_mpz_t()) < 0) ? _l : _r; 
+    return (mpz_cmp(_l.get_mpz_t(), _r.get_mpz_t()) < 0) ? _l : _r;
   }
-  
+
   const mpz_class N;
 };
 
@@ -107,8 +109,6 @@ class ModulusFactor_1 : public ModulusFactorBase
                       "0071584560878577663743040086340742855278549092581"}
   {}
 
-
-
   mpz_class factorN() override final
   {
     auto a = getSqrtN();
@@ -117,9 +117,104 @@ class ModulusFactor_1 : public ModulusFactorBase
     auto [p, q] = getPrimes(a, x);
 
     if (!testN(p, q)) {
-      throw std::exception();
+      throw std::runtime_error("ModulusFactor_1 test failed");
     }
+    this->p = p;
+    this->q = q;
     return min(p, q);
+  }
+
+  std::string parseMessage(mpz_class _value)
+  {
+    std::stringstream sstr;
+    sstr << std::hex << _value;
+
+    auto valueStr = sstr.str();
+
+    BOOST_LOG_TRIVIAL(debug) << "hex " << valueStr;
+
+    if (!boost::starts_with(valueStr, "2")) {
+      throw std::runtime_error("ModulusFactor_1 PCKS message does not start with 2");
+    }
+
+    auto msgIndex = valueStr.find("00");
+
+    if (msgIndex == std::string::npos) {
+      throw std::runtime_error("ModulusFactor_1 00 separator not found");
+    }
+
+    auto msgStr = valueStr.substr(msgIndex);
+    std::string message;
+    for (auto i=0; i<msgStr.size(); i+=2) {
+      std::string byte = msgStr.substr(i, 2);
+      char c = (char) strtol(byte.c_str(), nullptr, 16);
+      message.push_back(c);
+    }
+    return message;
+  }
+
+  std::string decrypt()
+  {
+    if (!testN(p, q)) {
+      throw std::runtime_error("ModulusFactor_1 test failed");
+    }
+
+    mpz_t m;
+    mpz_init(m);
+    // m ≡ c^d (mod n)
+    auto [n,d] = getPrivateKey();
+    mpz_powm(m, cipherTxt.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+    BOOST_LOG_TRIVIAL(debug) << "plain pcks " << m;
+    auto pkcsMessage = mpz_class(m);
+    mpz_clear(m);
+
+    return parseMessage(pkcsMessage);
+  }
+
+  private:
+  const mpz_class cipherTxt {"2209645186741038177630656113488341801741006978789283107173183914"
+                             "3676135600120538004282329650473509424343946219751512256465839967"
+                             "9428894607645420405815647489880137348641204523252293201764879166"
+                             "6640299750918872997169052608322206777160001932926087000957999372"
+                             "4077458967773697817571267229951148662959627934791540"};
+  mpz_class p, q;
+
+  mpz_class getPhiN()
+  {
+    mpz_t phiN, pp, qp;
+    mpz_init(phiN);
+    mpz_init(pp);
+    mpz_init(qp);
+    //  Euler's funtion φ(n) = (p−1)(q−1)
+    mpz_sub_ui(pp, this->p.get_mpz_t(), 1);
+    mpz_sub_ui(qp, this->q.get_mpz_t(), 1);
+    mpz_mul(phiN, pp, qp);
+    BOOST_LOG_TRIVIAL(debug) << "φ(n)=(p−1)(q−1) " << phiN;
+
+    auto retValue =  mpz_class(phiN);
+
+    mpz_clear(phiN);
+    mpz_clear(pp);
+    mpz_clear(qp);
+
+    return retValue;
+  }
+
+  std::pair<mpz_class, mpz_class> getPrivateKey()
+  {
+    mpz_t d, exp;
+    mpz_init(d);
+    mpz_init_set_ui(exp, 65537);
+
+    //d ≡ e−1 (mod φ(n))
+    auto phiN = getPhiN();
+    mpz_invert(d, exp, phiN.get_mpz_t());
+    BOOST_LOG_TRIVIAL(debug) << "d " << d;
+
+    auto retD = mpz_class(d);
+    mpz_clear(d);
+    mpz_clear(exp);
+    return std::make_pair(N, retD);
   }
 };
 
@@ -161,7 +256,7 @@ class ModulusFactor_2 : public ModulusFactorBase
 
     mpz_clear(end);
     mpz_clear(a);
-    throw std::exception();
+    throw std::runtime_error("ModulusFactor_2 primes not found");
   }
 };
 
@@ -213,7 +308,7 @@ class ModulusFactor_3 : public ModulusFactorBase
     BOOST_LOG_TRIVIAL(debug) << "q " << q;
 
     if (!testN(mpz_class(p), mpz_class(q))) {
-      throw std::exception();
+      throw std::runtime_error("ModulusFactor_3 test failed");
     }
 
     auto retValue = min(mpz_class(p), mpz_class(q));
@@ -270,10 +365,11 @@ int main(void)
 
   ModulusFactor_1 mf1;
   auto r1 = mf1.factorN();
+  auto r1Message = mf1.decrypt();
 
   ModulusFactor_2 mf2;
   auto r2 = mf2.factorN();
-  
+
   ModulusFactor_3 mf3;
   auto r3 = mf3.factorN();
 
@@ -282,8 +378,8 @@ int main(void)
   << "\t(1): " << r1 << "\n"
   << "\t(2): " << r2 << "\n"
   << "\t(3): " << r3 << "\n"
+  << "\t(4): " << r1Message << "\n"
   << "\n";
-
 
   return 0;
 }
